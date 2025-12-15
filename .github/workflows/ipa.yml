@@ -1,37 +1,56 @@
-name: Build iOS IPA only
+name: Build iOS Only
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 允許手動點擊按鈕觸發
 
 jobs:
   build-ios:
-    runs-on: macos-latest
-
+    name: Build iOS IPA
+    runs-on: macos-latest # 必須使用 macOS 環境
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      # 1. 下載程式碼
+      - uses: actions/checkout@v4
         with:
-          flutter-version: stable
+          ref: master
+
+      # 2. 設定 Flutter 環境 (沿用專案指定的 3.38.x 版本)
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.x"
           cache: true
 
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Build iOS (no codesign)
+      # 3. 安裝 Flutter 依賴
+      - name: Install Flutter Dependencies
         run: |
+          cd simple_live_app
+          flutter pub get
+
+      # 4. 安裝 iOS 依賴 (CocoaPods)
+      - name: Install CocoaPods
+        run: |
+          cd simple_live_app/ios
+          pod install --repo-update
+
+      # 5. 開始編譯 (跳過簽名，避免報錯)
+      - name: Build iOS (No Codesign)
+        run: |
+          cd simple_live_app
           flutter build ios --release --no-codesign
 
-      - name: Package IPA
+      # 6. 打包成 IPA 檔案
+      - name: Pack IPA
         run: |
+          cd simple_live_app/build/ios/iphoneos
           mkdir Payload
-          cp -R build/ios/iphoneos/Runner.app Payload/
-          zip -r dart_simple_live.ipa Payload
+          # 將 .app 移動到 Payload 資料夾中
+          mv Runner.app Payload
+          # 壓縮成 .ipa
+          zip -q -r simple_live_unsigned.ipa Payload
 
-      - name: Upload IPA artifact
+      # 7. 上傳結果讓你下載
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: dart_simple_live-ipa
-          path: dart_simple_live.ipa
+          name: simple_live_ios_unsigned
+          path: simple_live_app/build/ios/iphoneos/simple_live_unsigned.ipa
+          retention-days: 3
